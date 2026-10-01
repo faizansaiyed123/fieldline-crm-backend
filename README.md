@@ -44,27 +44,29 @@ python -m uvicorn app.main:app --reload --port 8000
 
 The API is available at `/api/v1`. Interactive documentation is available at `/api/v1/docs`.
 
-## One-command local startup
+## One-command backend startup
 
-After the backend dependencies and frontend dependencies are installed, `run.py` starts the complete local development stack:
+After the backend dependencies are installed, run:
 
 ```bash
 python run.py
 ```
 
-The launcher reuses the existing PostgreSQL Compose service, waits for PostgreSQL readiness, applies Alembic migrations, starts the existing FastAPI application with Uvicorn, and starts the companion Next.js development server.
+The launcher is backend-only. It:
 
-Because the frontend and backend are separate repositories, `run.py` discovers a nearby checkout of `fieldline-crm-frontend` when possible. For a frontend checkout elsewhere, set `FIELDLINE_FRONTEND_DIR` or pass its path explicitly:
+1. Loads the backend `.env` values.
+2. Starts the existing PostgreSQL Compose service when the configured database points to local PostgreSQL on port 5432.
+3. Waits for PostgreSQL to become ready.
+4. Applies all pending Alembic migrations.
+5. Starts the existing FastAPI application with Uvicorn on port 8000.
+6. Waits for the API to respond before handing control back to the terminal.
+7. Keeps monitoring the backend process until you stop it with Ctrl+C.
 
-```bash
-python run.py --frontend-dir /path/to/fieldline-crm-frontend
-```
+The frontend is intentionally not started or discovered by `run.py`. The frontend lives in its own repository and can be run independently there.
 
-The launcher never starts a second backend or frontend when the expected endpoint is already healthy.
+### Local backend ports
 
-### Local ports
-
-- Frontend: `http://127.0.0.1:3000`
+- PostgreSQL: `localhost:5432`
 - Backend: `http://127.0.0.1:8000`
 - API documentation: `http://127.0.0.1:8000/api/v1/docs`
 
