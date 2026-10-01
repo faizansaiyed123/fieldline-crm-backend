@@ -206,6 +206,10 @@ def start_process(
     return subprocess.Popen(command, cwd=cwd, env=env, **kwargs)
 
 
+def handle_shutdown(_signum: int, _frame: object) -> None:
+    raise KeyboardInterrupt
+
+
 def stop_process(process: subprocess.Popen[str], label: str) -> None:
     if process.poll() is not None:
         return
@@ -228,6 +232,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Start the Fieldline CRM local development stack.")
     parser.add_argument("--frontend-dir", help="Path to the separately cloned frontend repository.")
     args = parser.parse_args()
+
+    signal.signal(signal.SIGINT, handle_shutdown)
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, handle_shutdown)
 
     backend_dir = Path(__file__).resolve().parent
     frontend_dir = find_frontend(backend_dir, args.frontend_dir)
