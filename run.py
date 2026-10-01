@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 from urllib.error import URLError
+from urllib.parse import urlparse
 from urllib.request import urlopen
 
 BACKEND_HOST = "127.0.0.1"
@@ -106,7 +107,7 @@ def run(command: list[str], cwd: Path, env: dict[str, str]) -> None:
 
 
 def local_postgres_needed(env: dict[str, str]) -> bool:
-    parsed = __import__("urllib.parse", fromlist=["urlparse"]).urlparse(
+    parsed = urlparse(
         env.get("FIELDLINE_DATABASE_URL", DEFAULT_DATABASE_URL)
     )
     return (parsed.hostname or "localhost") in {"localhost", "127.0.0.1"} and (
