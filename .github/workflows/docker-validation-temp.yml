@@ -1,0 +1,45 @@
+name: Docker Validation (temporary)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Compose configuration
+        run: docker compose config
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Start backend stack
+        run: docker compose up -d
+
+      - name: Wait for backend readiness
+        run: |
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8000/api/v1/ready >/tmp/ready.json; then
+              cat /tmp/ready.json
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+
+      - name: Verify API root
+        run: curl --fail --silent http://127.0.0.1:8000/
+
+      - name: Verify Compose state
+        run: docker compose ps
+
+      - name: Stop backend stack
+        if: always()
+        run: docker compose down -v
