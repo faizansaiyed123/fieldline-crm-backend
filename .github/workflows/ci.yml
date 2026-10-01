@@ -55,3 +55,40 @@ jobs:
 
       - name: Run tests
         run: python -m pytest
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config
+
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Start Docker stack
+        run: docker compose up -d
+
+      - name: Wait for backend readiness
+        run: |
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8000/api/v1/ready >/tmp/fieldline-ready.json; then
+              cat /tmp/fieldline-ready.json
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+
+      - name: Verify backend root
+        run: curl --fail --silent http://127.0.0.1:8000/
+
+      - name: Show Docker state
+        run: docker compose ps
+
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose down -v
