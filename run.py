@@ -264,12 +264,17 @@ def main() -> int:
             processes.append(("backend", backend))
             wait_for_http(f"http://{BACKEND_HOST}:{BACKEND_PORT}/", backend, "Backend")
 
-        frontend_env = env.copy()
+        frontend_env = os.environ.copy()
         frontend_env.setdefault("BACKEND_URL", f"http://{BACKEND_HOST}:{BACKEND_PORT}")
 
         if port_open(BACKEND_HOST, FRONTEND_PORT):
             wait_for_http(f"http://{BACKEND_HOST}:{FRONTEND_PORT}/", None, "Existing frontend")
             log(f"Frontend already running at http://{BACKEND_HOST}:{FRONTEND_PORT}.")
+            wait_for_http(
+                f"http://{BACKEND_HOST}:{FRONTEND_PORT}/api/v1/health",
+                None,
+                "Existing frontend API proxy",
+            )
         else:
             frontend = start_process(
                 ["npm", "run", "dev", "--", "-p", str(FRONTEND_PORT)],
@@ -279,6 +284,11 @@ def main() -> int:
             )
             processes.append(("frontend", frontend))
             wait_for_http(f"http://{BACKEND_HOST}:{FRONTEND_PORT}/", frontend, "Frontend")
+            wait_for_http(
+                f"http://{BACKEND_HOST}:{FRONTEND_PORT}/api/v1/health",
+                frontend,
+                "Frontend API proxy",
+            )
 
         log("")
         log("Fieldline is running:")
