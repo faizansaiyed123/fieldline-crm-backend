@@ -108,7 +108,7 @@ jobs:
         run: |
           python run.py --frontend-dir "$GITHUB_WORKSPACE/frontend" > /tmp/fieldline-run.log 2>&1 &
           launcher=$!
-          trap 'kill -INT "$launcher" 2>/dev/null || true; wait "$launcher" 2>/dev/null || true' EXIT
+          trap 'kill -TERM "$launcher" 2>/dev/null || true; wait "$launcher" 2>/dev/null || true' EXIT
 
           for i in $(seq 1 90); do
             if curl --fail --silent http://127.0.0.1:3000/api/v1/health >/tmp/fieldline-proxy-health.json; then
@@ -124,5 +124,5 @@ jobs:
           cat /tmp/fieldline-proxy-health.json
           cat /tmp/fieldline-backend-health.json
 
-          kill -INT "$launcher"
+          kill -TERM "$launcher"
           wait "$launcher"
