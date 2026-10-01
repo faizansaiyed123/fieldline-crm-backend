@@ -55,3 +55,74 @@ jobs:
 
       - name: Run tests
         run: python -m pytest
+
+  launcher:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: fieldline
+          POSTGRES_USER: fieldline
+          POSTGRES_PASSWORD: fieldline
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U fieldline -d fieldline"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      FIELDLINE_DATABASE_URL: postgresql+psycopg://fieldline:fieldline@localhost:5432/fieldline
+
+    steps:
+      - name: Checkout backend
+        uses: actions/checkout@v4
+
+      - name: Checkout frontend
+        uses: actions/checkout@v4
+        with:
+          repository: faizansaiyed123/fieldline-crm-frontend
+          ref: feat/startup-docker-support
+          path: frontend
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install backend
+        run: python -m pip install .
+
+      - name: Install frontend
+        working-directory: frontend
+        run: npm install
+
+      - name: Start complete stack with run.py
+        run: |
+          python run.py --frontend-dir "$GITHUB_WORKSPACE/frontend" > /tmp/fieldline-run.log 2>&1 &
+          launcher=$!
+          trap 'kill -INT "$launcher" 2>/dev/null || true; wait "$launcher" 2>/dev/null || true' EXIT
+
+          for i in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:3000/api/v1/health >/tmp/fieldline-proxy-health.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent http://127.0.0.1:3000/ >/tmp/fieldline-home.html
+          curl --fail --silent http://127.0.0.1:3000/api/v1/health >/tmp/fieldline-proxy-health.json
+          curl --fail --silent http://127.0.0.1:8000/api/v1/health >/tmp/fieldline-backend-health.json
+          cat /tmp/fieldline-run.log
+          cat /tmp/fieldline-proxy-health.json
+          cat /tmp/fieldline-backend-health.json
+
+          kill -INT "$launcher"
+          wait "$launcher"
