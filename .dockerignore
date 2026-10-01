@@ -1,0 +1,29 @@
+# Git and repository metadata
+.git
+.gitignore
+.github
+
+# Local Python state
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Tests and local tooling output
+tests
+coverage
+htmlcov
+
+# Editor / OS files
+.vscode
+.idea
+.DS_Store
+Thumbs.db
