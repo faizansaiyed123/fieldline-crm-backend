@@ -105,7 +105,8 @@ Development defaults are already defined by the application and Docker Compose. 
 | --- | --- |
 | `FIELDLINE_ENVIRONMENT` | Runtime environment name; use `development` locally. |
 | `FIELDLINE_DEBUG` | FastAPI debug flag. |
-| `FIELDLINE_DATABASE_URL` | SQLAlchemy PostgreSQL connection URL. Docker Compose uses the `postgres` service hostname by default. |
+| `FIELDLINE_DATABASE_URL` | SQLAlchemy PostgreSQL connection URL for local/non-Docker runs. |
+| `FIELDLINE_DOCKER_DATABASE_URL` | Optional Docker-only database URL override. Defaults to the Compose `postgres` service so an existing local `.env` with `localhost` does not break the API container. |
 | `FIELDLINE_API_PREFIX` | API route prefix; defaults to `/api/v1`. |
 | `FIELDLINE_JWT_SECRET_KEY` | JWT signing secret; use a strong, private value outside local development. |
 | `FIELDLINE_JWT_ALGORITHM` | JWT signing algorithm. |
