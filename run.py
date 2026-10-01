@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import argparse
-import json
 import os
 import shutil
 import signal
@@ -11,15 +9,12 @@ import sys
 import time
 from pathlib import Path
 from urllib.error import URLError
-from urllib.parse import urlparse
 from urllib.request import urlopen
 
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = 8000
-FRONTEND_PORT = 3000
 POSTGRES_PORT = 5432
 DEFAULT_DATABASE_URL = "postgresql+psycopg://fieldline:fieldline@localhost:5432/fieldline"
-FRONTEND_PACKAGE_NAME = "fieldline-crm-frontend"
 
 
 def log(message: str) -> None:
@@ -69,7 +64,9 @@ def wait_for_http(
 
     while time.monotonic() < deadline:
         if process is not None and process.poll() is not None:
-            raise RuntimeError(f"{label} exited before becoming ready (code {process.returncode}).")
+            raise RuntimeError(
+                f"{label} exited before becoming ready (code {process.returncode})."
+            )
         try:
             with urlopen(url, timeout=2) as response:
                 if 200 <= response.status < 300:
@@ -79,7 +76,9 @@ def wait_for_http(
             last_error = str(exc)
         time.sleep(0.5)
 
-    raise RuntimeError(f"{label} did not become ready within {timeout:.0f} seconds ({last_error}).")
+    raise RuntimeError(
+        f"{label} did not become ready within {timeout:.0f} seconds ({last_error})."
+    )
 
 
 def compose_command(backend_dir: Path) -> list[str]:
@@ -106,57 +105,10 @@ def run(command: list[str], cwd: Path, env: dict[str, str]) -> None:
     subprocess.run(command, cwd=cwd, env=env, check=True)
 
 
-def frontend_repo(path: Path) -> bool:
-    package_file = path / "package.json"
-    if not package_file.is_file() or not (path / "next.config.ts").is_file():
-        return False
-    try:
-        return json.loads(package_file.read_text(encoding="utf-8")).get("name") == FRONTEND_PACKAGE_NAME
-    except (OSError, json.JSONDecodeError):
-        return False
-
-
-def find_frontend(backend_dir: Path, configured: str | None) -> Path:
-    value = configured or os.environ.get("FIELDLINE_FRONTEND_DIR")
-    if value:
-        path = Path(value).expanduser().resolve()
-        if frontend_repo(path):
-            return path
-        raise RuntimeError(f"Frontend path is not a Fieldline frontend repository: {path}")
-
-    cwd = Path.cwd()
-    candidates = [cwd, backend_dir.parent / FRONTEND_PACKAGE_NAME]
-    if cwd != backend_dir:
-        candidates.append(cwd / FRONTEND_PACKAGE_NAME)
-
-    for base in (cwd, backend_dir, backend_dir.parent):
-        if not base.is_dir():
-            continue
-        try:
-            candidates.extend(child for child in base.iterdir() if child.is_dir())
-        except OSError:
-            continue
-
-    seen: set[Path] = set()
-    for candidate in candidates:
-        try:
-            path = candidate.resolve()
-        except OSError:
-            continue
-        if path in seen:
-            continue
-        seen.add(path)
-        if frontend_repo(path):
-            return path
-
-    raise RuntimeError(
-        "The frontend checkout could not be located. Set FIELDLINE_FRONTEND_DIR or "
-        "pass --frontend-dir with the path to fieldline-crm-frontend."
-    )
-
-
 def local_postgres_needed(env: dict[str, str]) -> bool:
-    parsed = urlparse(env.get("FIELDLINE_DATABASE_URL", DEFAULT_DATABASE_URL))
+    parsed = __import__("urllib.parse", fromlist=["urlparse"]).urlparse(
+        env.get("FIELDLINE_DATABASE_URL", DEFAULT_DATABASE_URL)
+    )
     return (parsed.hostname or "localhost") in {"localhost", "127.0.0.1"} and (
         parsed.port or POSTGRES_PORT
     ) == POSTGRES_PORT
@@ -177,7 +129,17 @@ def ensure_postgres(backend_dir: Path, env: dict[str, str]) -> None:
     deadline = time.monotonic() + 90
     while time.monotonic() < deadline:
         ready = subprocess.run(
-            [*compose, "exec", "-T", "postgres", "pg_isready", "-U", "fieldline", "-d", "fieldline"],
+            [
+                *compose,
+                "exec",
+                "-T",
+                "postgres",
+                "pg_isready",
+                "-U",
+                "fieldline",
+                "-d",
+                "fieldline",
+            ],
             cwd=backend_dir,
             env=env,
             stdout=subprocess.DEVNULL,
@@ -229,28 +191,26 @@ def stop_process(process: subprocess.Popen[str], label: str) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Start the Fieldline CRM local development stack.")
-    parser.add_argument("--frontend-dir", help="Path to the separately cloned frontend repository.")
-    args = parser.parse_args()
-
     signal.signal(signal.SIGINT, handle_shutdown)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, handle_shutdown)
 
     backend_dir = Path(__file__).resolve().parent
-    frontend_dir = find_frontend(backend_dir, args.frontend_dir)
     env = build_env(backend_dir)
     processes: list[tuple[str, subprocess.Popen[str]]] = []
 
     try:
-        log(f"Backend:  {backend_dir}")
-        log(f"Frontend: {frontend_dir}")
+        log(f"Backend: {backend_dir}")
 
         ensure_postgres(backend_dir, env)
         run([sys.executable, "-m", "alembic", "upgrade", "head"], backend_dir, env)
 
         if port_open(BACKEND_HOST, BACKEND_PORT):
-            wait_for_http(f"http://{BACKEND_HOST}:{BACKEND_PORT}/", None, "Existing backend")
+            wait_for_http(
+                f"http://{BACKEND_HOST}:{BACKEND_PORT}/",
+                None,
+                "Existing backend",
+            )
             log(f"Backend already running at http://{BACKEND_HOST}:{BACKEND_PORT}.")
         else:
             backend = start_process(
@@ -270,45 +230,25 @@ def main() -> int:
                 "backend",
             )
             processes.append(("backend", backend))
-            wait_for_http(f"http://{BACKEND_HOST}:{BACKEND_PORT}/", backend, "Backend")
-
-        frontend_env = os.environ.copy()
-        frontend_env.setdefault("BACKEND_URL", f"http://{BACKEND_HOST}:{BACKEND_PORT}")
-
-        if port_open(BACKEND_HOST, FRONTEND_PORT):
-            wait_for_http(f"http://{BACKEND_HOST}:{FRONTEND_PORT}/", None, "Existing frontend")
-            log(f"Frontend already running at http://{BACKEND_HOST}:{FRONTEND_PORT}.")
             wait_for_http(
-                f"http://{BACKEND_HOST}:{FRONTEND_PORT}/api/v1/health",
-                None,
-                "Existing frontend API proxy",
-            )
-        else:
-            frontend = start_process(
-                ["npm", "run", "dev", "--", "-p", str(FRONTEND_PORT)],
-                frontend_dir,
-                frontend_env,
-                "frontend",
-            )
-            processes.append(("frontend", frontend))
-            wait_for_http(f"http://{BACKEND_HOST}:{FRONTEND_PORT}/", frontend, "Frontend")
-            wait_for_http(
-                f"http://{BACKEND_HOST}:{FRONTEND_PORT}/api/v1/health",
-                frontend,
-                "Frontend API proxy",
+                f"http://{BACKEND_HOST}:{BACKEND_PORT}/",
+                backend,
+                "Backend",
             )
 
         log("")
-        log("Fieldline is running:")
-        log(f"  Frontend: http://{BACKEND_HOST}:{FRONTEND_PORT}")
+        log("Fieldline backend is running:")
         log(f"  Backend:  http://{BACKEND_HOST}:{BACKEND_PORT}")
         log(f"  API docs: http://{BACKEND_HOST}:{BACKEND_PORT}/api/v1/docs")
-        log("Press Ctrl+C to stop the processes started by run.py.")
+        log("  PostgreSQL: localhost:5432")
+        log("Press Ctrl+C to stop the backend process started by run.py.")
 
         while True:
             for label, process in processes:
                 if process.poll() is not None:
-                    raise RuntimeError(f"{label} exited unexpectedly with code {process.returncode}.")
+                    raise RuntimeError(
+                        f"{label} exited unexpectedly with code {process.returncode}."
+                    )
             time.sleep(0.5)
 
     except KeyboardInterrupt:
