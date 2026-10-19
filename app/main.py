@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Request
 
-from app.api.engagement import router as engagement_router
 from app.api.attention import router as attention_router
 from app.api.automation import router as automation_router
 from app.api.companies import router as companies_router
 from app.api.contacts import router as contacts_router
+from app.api.engagement import router as engagement_router
 from app.api.health import router as health_router
 from app.api.imports import router as imports_router
 from app.api.opportunities import router as opportunities_router
