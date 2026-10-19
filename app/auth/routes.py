@@ -1,4 +1,5 @@
 import hashlib
+import re
 import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -127,9 +128,10 @@ def signup(
     check_allowed(db, "signup-ip", client_ip, SIGNUP_IP_LIMIT, SIGNUP_WINDOW)
 
     email = str(payload.email).lower()
-    slug = "-".join(payload.organization_name.lower().split())[:80].strip("-") or "organization"
-    if not slug[0].isalnum():
-        slug = "org-" + slug
+    base_slug = re.sub(r"[^a-z0-9]+", "-", payload.organization_name.lower()).strip("-")[:70] or "organization"
+    slug = base_slug
+    if db.scalar(select(Organization.id).where(Organization.slug == slug).limit(1)) is not None:
+        slug = f"{base_slug}-{secrets.token_hex(3)}"
 
     existing = db.scalar(select(User).where(func.lower(User.email) == email).limit(1))
     if existing:

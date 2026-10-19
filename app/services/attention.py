@@ -81,10 +81,7 @@ def get_attention_queue(db: Session, *, organization_id: UUID, limit: int = 50) 
         literal("contact").label("entity_type"),
         literal(70).label("priority"),
         func.concat(Contact.first_name, " ", Contact.last_name).label("title"),
-        case(
-            (contact_last_activity.is_(None), literal("Lead/prospect has gone 14+ days without recorded activity")),
-            else_=literal("Lead/prospect has gone 14+ days without recorded activity"),
-        ).label("reason"),
+        literal(f"Lead/prospect has gone {contact_days}+ days without recorded activity").label("reason"),
         literal(None).cast(DateTime(timezone=True)).label("due_at"),
         contact_last_activity.label("last_activity_at"),
         func.coalesce(contact_last_activity, Contact.created_at).label("sort_time"),

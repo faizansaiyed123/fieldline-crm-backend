@@ -50,5 +50,12 @@ class Task(Base):
             "due_at",
             "completed_at",
         ),
+        Index(
+            "ix_tasks_org_contact_due",
+            "organization_id",
+            "contact_id",
+            "due_at",
+            "completed_at",
+        ),
         Index("ix_tasks_org_attention", "organization_id", "completed_at", "due_at"),
     )
