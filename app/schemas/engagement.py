@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 ActivityType = Literal["note", "call", "email", "meeting"]
@@ -37,11 +37,7 @@ class ActivityResponse(BaseModel):
     title: str
     body: str | None = None
     occurred_at: datetime
-
-    @computed_field
-    @property
-    def created_at(self) -> datetime:
-        return self.occurred_at
+    created_at: datetime | None = None
 
 
 class TaskCreate(BaseModel):
@@ -84,8 +80,4 @@ class TaskResponse(BaseModel):
     completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
-
-    @computed_field
-    @property
-    def completed(self) -> bool:
-        return self.completed_at is not None
+    completed: bool = False
