@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 
+from app.api.engagement import router as engagement_router
 from app.api.attention import router as attention_router
 from app.api.automation import router as automation_router
 from app.api.companies import router as companies_router
@@ -44,6 +45,7 @@ app.include_router(imports_router, prefix=settings.api_prefix)
 app.include_router(saved_views_router, prefix=settings.api_prefix)
 app.include_router(standout_router, prefix=settings.api_prefix)
 app.include_router(relationship_health_router, prefix=settings.api_prefix)
+app.include_router(engagement_router, prefix=settings.api_prefix)
 
 
 @app.get("/", include_in_schema=False)
