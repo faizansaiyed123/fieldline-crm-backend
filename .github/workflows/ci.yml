@@ -55,3 +55,6 @@ jobs:
 
       - name: Run tests
         run: python -m pytest
+
+      - name: Build backend Docker image
+        run: docker build --pull --tag fieldline-crm-backend:ci .
