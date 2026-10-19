@@ -4,7 +4,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
 ActivityType = Literal["note", "call", "email", "meeting"]
 TaskPriority = Literal["low", "normal", "high", "urgent"]
 
