@@ -19,8 +19,8 @@ def _contact_duplicates(db: Session, *, organization_id: UUID, limit: int = 50) 
     second = aliased(Contact)
     first_name = func.lower(func.concat(first.first_name, " ", first.last_name))
     second_name = func.lower(func.concat(second.first_name, " ", second.last_name))
-    first_phone = func.regexp_replace(first.phone, r"D", "", "g")
-    second_phone = func.regexp_replace(second.phone, r"D", "", "g")
+    first_phone = func.regexp_replace(first.phone, r"\\D", "", "g")
+    second_phone = func.regexp_replace(second.phone, r"\\D", "", "g")
     similarity = func.similarity(first_name, second_name)
     statement = (
         select(
@@ -87,8 +87,8 @@ def _company_duplicates(db: Session, *, organization_id: UUID, limit: int = 50) 
     second = aliased(Company)
     first_name = func.lower(first.name)
     second_name = func.lower(second.name)
-    first_phone = func.regexp_replace(first.phone, r"D", "", "g")
-    second_phone = func.regexp_replace(second.phone, r"D", "", "g")
+    first_phone = func.regexp_replace(first.phone, r"\\D", "", "g")
+    second_phone = func.regexp_replace(second.phone, r"\\D", "", "g")
     similarity = func.similarity(first_name, second_name)
     statement = (
         select(
