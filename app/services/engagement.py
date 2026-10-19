@@ -1,23 +1,17 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
-from app.models import Activity, Company, Contact, Membership, Opportunity, Task, User
+from app.models import Activity, Company, Contact, Membership, Opportunity, Task
 from app.services.audit import record_audit
 
 
-def _as_utc(value: datetime | None) -> datetime | None:
-    if value is None or value.tzinfo is None:
-        return value
-    return value.astimezone(timezone.utc).replace(tzinfo=None)
-
-
-async def _ensure_related_entity(
-    db: AsyncSession,
+def _ensure_related_entity(
+    db: Session,
     model,
     entity_id: UUID | None,
     organization_id: UUID,
@@ -25,33 +19,31 @@ async def _ensure_related_entity(
 ) -> None:
     if entity_id is None:
         return
-    stmt = select(model.id).where(
+    statement = select(model.id).where(
         model.id == entity_id,
         model.organization_id == organization_id,
     )
-    result = await db.execute(stmt)
-    if result.scalar_one_or_none() is None:
+    if db.scalar(statement) is None:
         raise ValueError(f"{label} not found in organization")
 
 
-async def _ensure_assignment(
-    db: AsyncSession,
+def _ensure_assignment(
+    db: Session,
     user_id: UUID | None,
     organization_id: UUID,
 ) -> None:
     if user_id is None:
         return
-    stmt = select(Membership.id).where(
+    statement = select(Membership.id).where(
         Membership.user_id == user_id,
         Membership.organization_id == organization_id,
     )
-    result = await db.execute(stmt)
-    if result.scalar_one_or_none() is None:
+    if db.scalar(statement) is None:
         raise ValueError("Assigned user is not a member of the organization")
 
 
-async def create_activity(
-    db: AsyncSession,
+def create_activity(
+    db: Session,
     organization_id: UUID,
     actor_user_id: UUID,
     payload,
@@ -61,50 +53,49 @@ async def create_activity(
         (Contact, payload.contact_id, "Contact"),
         (Opportunity, payload.opportunity_id, "Opportunity"),
     ):
-        await _ensure_related_entity(db, model, entity_id, organization_id, label)
+        _ensure_related_entity(db, model, entity_id, organization_id, label)
 
     activity = Activity(
         organization_id=organization_id,
+        actor_user_id=actor_user_id,
         company_id=payload.company_id,
         contact_id=payload.contact_id,
         opportunity_id=payload.opportunity_id,
         activity_type=payload.activity_type,
         title=payload.title,
         body=payload.body,
-        created_by_user_id=actor_user_id,
     )
     db.add(activity)
-    await db.flush()
-    await record_audit(
+    db.flush()
+    record_audit(
         db,
         organization_id=organization_id,
-        user_id=actor_user_id,
+        actor_user_id=actor_user_id,
         action="created",
         entity_type="activity",
         entity_id=activity.id,
     )
-    await db.commit()
-    await db.refresh(activity)
+    db.commit()
+    db.refresh(activity)
     return activity
 
 
-async def list_activities(
-    db: AsyncSession,
+def list_activities(
+    db: Session,
     organization_id: UUID,
     limit: int = 100,
 ) -> list[Activity]:
-    stmt = (
+    statement = (
         select(Activity)
         .where(Activity.organization_id == organization_id)
-        .order_by(Activity.created_at.desc())
+        .order_by(Activity.occurred_at.desc())
         .limit(min(max(limit, 1), 100))
     )
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    return list(db.scalars(statement).all())
 
 
-async def create_task(
-    db: AsyncSession,
+def create_task(
+    db: Session,
     organization_id: UUID,
     actor_user_id: UUID,
     payload,
@@ -114,11 +105,12 @@ async def create_task(
         (Contact, payload.contact_id, "Contact"),
         (Opportunity, payload.opportunity_id, "Opportunity"),
     ):
-        await _ensure_related_entity(db, model, entity_id, organization_id, label)
-    await _ensure_assignment(db, payload.assigned_to_user_id, organization_id)
+        _ensure_related_entity(db, model, entity_id, organization_id, label)
+    _ensure_assignment(db, payload.assigned_to_user_id, organization_id)
 
     task = Task(
         organization_id=organization_id,
+        created_by_user_id=actor_user_id,
         assigned_to_user_id=payload.assigned_to_user_id,
         company_id=payload.company_id,
         contact_id=payload.contact_id,
@@ -126,51 +118,49 @@ async def create_task(
         title=payload.title,
         description=payload.description,
         priority=payload.priority,
-        due_at=_as_utc(payload.due_at),
-        completed=False,
-        created_by_user_id=actor_user_id,
+        due_at=payload.due_at,
     )
     db.add(task)
-    await db.flush()
-    await record_audit(
+    db.flush()
+    record_audit(
         db,
         organization_id=organization_id,
-        user_id=actor_user_id,
+        actor_user_id=actor_user_id,
         action="created",
         entity_type="task",
         entity_id=task.id,
     )
-    await db.commit()
-    await db.refresh(task)
+    db.commit()
+    db.refresh(task)
     return task
 
 
-async def list_tasks(
-    db: AsyncSession,
+def list_tasks(
+    db: Session,
     organization_id: UUID,
     limit: int = 100,
 ) -> list[Task]:
-    stmt = (
+    statement = (
         select(Task)
         .where(Task.organization_id == organization_id)
         .order_by(Task.created_at.desc())
         .limit(min(max(limit, 1), 100))
     )
-    result = await db.execute(stmt)
-    return list(result.scalars().all())
+    return list(db.scalars(statement).all())
 
 
-async def update_task(
-    db: AsyncSession,
+def update_task(
+    db: Session,
     task: Task,
     organization_id: UUID,
     actor_user_id: UUID,
     payload,
 ) -> Task:
     values = payload.model_dump(exclude_unset=True)
+    completed = values.pop("completed", None)
 
     if "assigned_to_user_id" in values:
-        await _ensure_assignment(db, values["assigned_to_user_id"], organization_id)
+        _ensure_assignment(db, values["assigned_to_user_id"], organization_id)
 
     for model, key, label in (
         (Company, "company_id", "Company"),
@@ -178,26 +168,24 @@ async def update_task(
         (Opportunity, "opportunity_id", "Opportunity"),
     ):
         if key in values:
-            await _ensure_related_entity(db, model, values[key], organization_id, label)
-
-    if "due_at" in values:
-        values["due_at"] = _as_utc(values["due_at"])
-
-    if "completed" in values:
-        values["completed_at"] = datetime.now(timezone.utc).replace(tzinfo=None) if values["completed"] else None
+            _ensure_related_entity(db, model, values[key], organization_id, label)
 
     for key, value in values.items():
         setattr(task, key, value)
 
-    await db.flush()
-    await record_audit(
+    if completed is not None:
+        task.completed_at = datetime.utcnow() if completed else None
+
+    db.flush()
+    record_audit(
         db,
         organization_id=organization_id,
-        user_id=actor_user_id,
+        actor_user_id=actor_user_id,
         action="updated",
         entity_type="task",
         entity_id=task.id,
+        after_data={"completed": task.completed_at is not None},
     )
-    await db.commit()
-    await db.refresh(task)
+    db.commit()
+    db.refresh(task)
     return task

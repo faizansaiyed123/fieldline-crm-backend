@@ -63,6 +63,9 @@ EXPECTED_ROUTES = {
     "/api/v1/organizations/{organization_id}/contacts/{contact_id}/relationship-graph": {"GET"},
     "/api/v1/organizations/{organization_id}/system-health": {"GET"},
     "/api/v1/organizations/{organization_id}/contacts/{contact_id}/relationship-health": {"GET"},
+    "/api/v1/organizations/{organization_id}/engagement/activities": {"GET", "POST"},
+    "/api/v1/organizations/{organization_id}/engagement/tasks": {"GET", "POST"},
+    "/api/v1/organizations/{organization_id}/engagement/tasks/{task_id}": {"PATCH"},
 }
 
 def identity(db_session, *, role: MembershipRole = MembershipRole.OWNER, suffix: str | None = None):
@@ -112,6 +115,74 @@ def test_openapi_route_registration_is_complete(client):
     }
     assert actual == EXPECTED_ROUTES
 
+
+
+def test_engagement_activity_and_task_api(client, db_session):
+    organization, owner = identity(db_session)
+    other, other_user = identity(db_session, suffix=uuid4().hex)
+    company = Company(
+        organization_id=organization.id,
+        owner_user_id=owner.id,
+        name="Engagement Co",
+    )
+    db_session.add(company)
+    db_session.flush()
+
+    base = f"/api/v1/organizations/{organization.id}/engagement"
+    headers_value = headers(owner)
+
+    assert client.get(f"{base}/activities").status_code == 401
+
+    activity = client.post(
+        f"{base}/activities",
+        json={
+            "company_id": str(company.id),
+            "activity_type": "note",
+            "title": "Discovery note",
+            "body": "Initial discovery",
+        },
+        headers=headers_value,
+    )
+    assert activity.status_code == 201
+    assert activity.json()["company_id"] == str(company.id)
+    assert activity.json()["created_at"] == activity.json()["occurred_at"]
+
+    activities = client.get(f"{base}/activities", headers=headers_value)
+    assert activities.status_code == 200
+    assert len(activities.json()) == 1
+
+    task = client.post(
+        f"{base}/tasks",
+        json={
+            "company_id": str(company.id),
+            "title": "Follow up",
+            "priority": "high",
+        },
+        headers=headers_value,
+    )
+    assert task.status_code == 201
+    task_id = task.json()["id"]
+    assert task.json()["completed"] is False
+
+    updated = client.patch(
+        f"{base}/tasks/{task_id}",
+        json={"completed": True},
+        headers=headers_value,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["completed"] is True
+    assert updated.json()["completed_at"] is not None
+
+    forbidden = client.get(
+        f"/api/v1/organizations/{other.id}/engagement/tasks",
+        headers=headers_value,
+    )
+    assert forbidden.status_code == 403
+
+    assert client.get(
+        f"/api/v1/organizations/{other.id}/engagement/tasks",
+        headers=headers(other_user),
+    ).status_code == 200
 
 def test_health_and_auth_end_to_end(client, db_session):
     assert client.get("/api/v1/health").json() == {
