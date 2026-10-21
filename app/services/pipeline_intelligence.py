@@ -70,8 +70,6 @@ def get_stuck_opportunities(
         .scalar_subquery()
     )
 
-    # Stage-entry timestamps are recorded in audit after_data. If history is incomplete,
-    # fall back to the opportunity update time rather than inventing age.
     statement = (
         select(
             Opportunity,
