@@ -57,8 +57,8 @@ jobs:
       - name: Apply migrations
         run: python -m alembic upgrade head
 
-      - name: Run tests
-        run: python -m pytest
+      - name: Run tests with statement and branch coverage
+        run: python -m pytest --cov=app --cov-branch --cov-report=term-missing:skip-covered
 
       - name: Build backend Docker image
         run: docker build --pull --tag fieldline-crm-backend:ci .
