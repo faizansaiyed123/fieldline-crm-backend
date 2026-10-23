@@ -3,8 +3,12 @@ from uuid import uuid4
 
 import jwt
 import pytest
-from jwt.exceptions import ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
-from jwt.exceptions import MissingRequiredClaimError
+from jwt.exceptions import (
+    ExpiredSignatureError,
+    InvalidAudienceError,
+    InvalidIssuerError,
+    MissingRequiredClaimError,
+)
 
 from app.auth.crypto import hash_password, verify_password
 from app.auth.tokens import (
