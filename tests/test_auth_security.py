@@ -1,7 +1,10 @@
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import jwt
 import pytest
+from jwt.exceptions import ExpiredSignatureError, InvalidAudienceError, InvalidIssuerError
+from jwt.exceptions import MissingRequiredClaimError
 
 from app.auth.crypto import hash_password, verify_password
 from app.auth.tokens import (
@@ -41,6 +44,53 @@ def test_access_token_rejects_wrong_type() -> None:
         algorithm="HS256",
     )
     with pytest.raises(ValueError):
+        decode_access_token(token)
+
+
+@pytest.mark.parametrize(
+    ("claim", "value", "expected_exception"),
+    [
+        ("iss", "untrusted-issuer", InvalidIssuerError),
+        ("aud", "untrusted-audience", InvalidAudienceError),
+        ("exp", datetime.now(UTC) - timedelta(minutes=1), ExpiredSignatureError),
+        ("sub", "not-a-uuid", ValueError),
+    ],
+)
+def test_access_token_rejects_invalid_claim_values(
+    claim: str, value: object, expected_exception: type[Exception]
+) -> None:
+    settings = Settings()
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(uuid4()),
+        "type": "access",
+        "iat": now,
+        "exp": now + timedelta(minutes=5),
+        "iss": settings.jwt_issuer,
+        "aud": settings.jwt_audience,
+    }
+    payload[claim] = value
+    token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+    with pytest.raises(expected_exception):
+        decode_access_token(token)
+
+
+def test_access_token_rejects_missing_required_claim() -> None:
+    settings = Settings()
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(uuid4()),
+        "type": "access",
+        "iat": now,
+        "exp": now + timedelta(minutes=5),
+        "iss": settings.jwt_issuer,
+        "aud": settings.jwt_audience,
+    }
+    del payload["aud"]
+    token = jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+    with pytest.raises(MissingRequiredClaimError):
         decode_access_token(token)
 
 
