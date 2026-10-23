@@ -58,7 +58,16 @@ jobs:
         run: python -m alembic upgrade head
 
       - name: Run tests with statement and branch coverage
-        run: python -m pytest --cov=app --cov-branch --cov-report=term-missing:skip-covered
+        run: python -m pytest --cov=app --cov-branch --cov-report=term-missing:skip-covered --cov-report=html:coverage-html
+
+      - name: Preserve coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fieldline-backend-coverage
+          path: coverage-html/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Build backend Docker image
         run: docker build --pull --tag fieldline-crm-backend:ci .
