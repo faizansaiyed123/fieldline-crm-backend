@@ -374,7 +374,6 @@ async def api_dispatch(full_path: str, request: Request, response: Response) -> 
     tail = parts[3:]
     item_id = tail[0] if tail else None
     action = tail[1] if len(tail) > 1 else None
-    is_admin = user["memberships"][0]["role"] in {"owner", "admin"}
 
     if resource in {"companies", "contacts"}:
         rows = STATE[resource]
