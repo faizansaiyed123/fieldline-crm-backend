@@ -1,0 +1,39 @@
+name: Fieldline Backend Demo Checks
+
+on:
+  push:
+    branches: [demo]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fieldline-backend-demo
+  cancel-in-progress: true
+
+jobs:
+  isolated-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout demo branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install backend and test dependencies
+        run: python -m pip install ".[dev]"
+
+      - name: Lint isolated demo files
+        run: ruff check demo_app.py demo_tests
+
+      - name: Compile isolated demo
+        run: python -m compileall -q demo_app.py demo_tests
+
+      - name: Test in-memory demo API
+        run: python -m pytest demo_tests -q
